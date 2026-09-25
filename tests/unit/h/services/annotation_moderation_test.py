@@ -270,7 +270,8 @@ class TestAnnotationModerationService:
 
         expected_context = {
             "user_display_name": user.display_name,
-            "annotation_url": pyramid_request.route_url("annotation", id=annotation.id),
+            # Without a bouncer, the link goes straight to the annotated page.
+            "annotation_url": f"{annotation.target_uri}#annotations:{annotation.thread_root_id}",
             "annotation": annotation,
             "annotation_quote": annotation.quote,
             "unsubscribe_url": pyramid_request.route_url(
