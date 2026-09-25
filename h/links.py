@@ -1,6 +1,6 @@
 """Provides links to different representations of annotations."""
 
-from urllib.parse import unquote, urljoin, urlparse
+from urllib.parse import unquote, urldefrag, urljoin, urlparse
 
 
 def pretty_link(url):
@@ -29,25 +29,47 @@ def html_link(request, annotation):
 
 
 def incontext_link(request, annotation):
-    """Generate a link to an annotation on the page where it was made."""
+    """
+    Generate a link to an annotation on the page where it was made.
+
+    If a bouncer (`h.bouncer_url`) is configured, this is a link to the bouncer.
+
+    Otherwise it links straight to the page with an `#annotations:<id>`
+    fragment, which the client reads on load to select the annotation. This
+    works for pages that embed the client. Returns None if the annotation
+    wasn't made on a web (http or https) page.
+    """
     bouncer_url = request.registry.settings.get("h.bouncer_url")
+    web_uri = _web_uri(annotation)
+
     if not bouncer_url:
-        return None
+        if web_uri is None:
+            return None
+        # The client only recognizes the fragment at the end of the URL, so
+        # replace any fragment the page URL already has.
+        return f"{urldefrag(web_uri).url}#annotations:{annotation.thread_root_id}"
 
     link = urljoin(bouncer_url, annotation.thread_root_id)
-    uri = annotation.target_uri
-    if uri.startswith(("http://", "https://")):
+    if web_uri is not None:
         # We can't use urljoin here, because if it detects the second argument
         # is a URL it will discard the base URL, breaking the link entirely.
-        link += "/" + uri[uri.index("://") + 3 :]
-    elif uri.startswith("urn:x-pdf:") and annotation.document:  # pragma: no cover
-        for docuri in annotation.document.document_uris:
-            uri = docuri.uri
-            if uri.startswith(("http://", "https://")):
-                link += "/" + uri[uri.index("://") + 3 :]
-                break
+        link += "/" + web_uri[web_uri.index("://") + 3 :]
 
     return link
+
+
+def _web_uri(annotation):
+    """Return the web (http or https) URL of the annotated page, or None."""
+    uri = annotation.target_uri
+    if uri.startswith(("http://", "https://")):
+        return uri
+
+    if uri.startswith("urn:x-pdf:") and annotation.document:
+        for docuri in annotation.document.document_uris:
+            if docuri.uri.startswith(("http://", "https://")):
+                return docuri.uri
+
+    return None
 
 
 def json_link(request, annotation):

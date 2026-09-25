@@ -112,6 +112,74 @@ def test_incontext_link_skips_uri_for_pdfs_with_no_document(pyramid_request):
     assert link == "https://hyp.is/123"
 
 
+class TestIncontextLinkWithoutBouncer:
+    @pytest.mark.parametrize(
+        "target_uri,expected",
+        [
+            (
+                "http://example.com/foo/bar",
+                "http://example.com/foo/bar#annotations:123",
+            ),
+            (
+                "https://example.com/foo?q=1",
+                "https://example.com/foo?q=1#annotations:123",
+            ),
+            # An existing fragment is replaced: the client only recognizes the
+            # fragment at the end of the URL.
+            (
+                "https://example.com/foo#section",
+                "https://example.com/foo#annotations:123",
+            ),
+        ],
+    )
+    def test_it_links_to_the_page_with_an_annotations_fragment(
+        self, pyramid_request, target_uri, expected
+    ):
+        annotation = FakeAnnotation()
+        annotation.target_uri = target_uri
+
+        link = links.incontext_link(pyramid_request, annotation)
+
+        assert link == expected
+
+    def test_it_uses_the_first_web_uri_for_pdfs_with_document(self, pyramid_request):
+        doc = FakeDocument()
+        doc.document_uris = [FakeDocumentURI(), FakeDocumentURI(), FakeDocumentURI()]
+        doc.document_uris[0].uri = "urn:x-pdf:the-fingerprint"
+        doc.document_uris[1].uri = "http://example.com/foo.pdf"
+        doc.document_uris[2].uri = "http://example.com/bar.pdf"
+        annotation = FakeAnnotation()
+        annotation.document = doc
+        annotation.target_uri = "urn:x-pdf:the-fingerprint"
+
+        link = links.incontext_link(pyramid_request, annotation)
+
+        assert link == "http://example.com/foo.pdf#annotations:123"
+
+    @pytest.mark.parametrize(
+        "target_uri",
+        [
+            "",
+            "something_not_a_url",
+            "ftp://not_http",
+            "file:///home/user/document.html",
+            "urn:x-pdf:the-fingerprint",
+        ],
+    )
+    def test_it_returns_None_if_the_annotation_is_not_on_a_web_page(
+        self, pyramid_request, target_uri
+    ):
+        annotation = FakeAnnotation()
+        annotation.target_uri = target_uri
+
+        assert links.incontext_link(pyramid_request, annotation) is None
+
+    @pytest.fixture
+    def pyramid_settings(self, pyramid_settings):
+        del pyramid_settings["h.bouncer_url"]
+        return pyramid_settings
+
+
 def test_json_link(factories, pyramid_config, pyramid_request):
     annotation = factories.Annotation(id="e22AJlHYQNCG70bXL7gr1w")
     pyramid_config.add_route("api.annotation", "/annos/{id}")
