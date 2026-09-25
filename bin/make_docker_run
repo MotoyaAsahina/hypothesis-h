@@ -1,8 +1,28 @@
 #!/bin/bash
-docker run \
+#
+# Run the image built by `make docker` against the services started by
+# `make services` (docker-compose.yml).
+#
+# Postgres is only on the external `dbs` network, while Elasticsearch and
+# RabbitMQ are on the compose project's default network (`h_default`), so the
+# container joins both. `docker create` + `docker network connect` is used
+# because older Docker versions accept only one --network flag on `docker run`.
+
+set -euo pipefail
+
+name=h-docker-run
+
+docker rm -f "$name" >/dev/null 2>&1 || true
+
+docker create \
+    --name "$name" \
     --add-host host.docker.internal:host-gateway \
-    --net h_default \
+    --network h_default \
     --env-file .docker.env \
     --env-file .devdata.env \
     -p 5000:5000 \
-    hypothesis/h:dev
+    hypothesis/h:dev >/dev/null
+
+docker network connect dbs "$name"
+
+exec docker start --attach "$name"
