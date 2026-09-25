@@ -1,27 +1,6 @@
 {% macro share_widget() -%}
 
 <div class="share-widget js-share-widget-owner">
-  <div class="share-widget-target">
-    <span class="share-widget-target__label">Share:</span>
-    <div class="u-stretch"></div>
-    <a share-target-href="https://twitter.com/intent/tweet?url={href}&hashtags=annotated"
-      target="_blank"
-      title="Tweet link"
-      class="share-widget-target__icon">
-      {{ svg_icon('twitter', 'share-widget-action') }}
-    </a>
-    <a share-target-href="https://www.facebook.com/sharer/sharer.php?u={href}"
-      target="_blank"
-      title="Share on Facebook"
-      class="share-widget-target__icon">
-      {{ svg_icon('facebook', 'share-widget-action') }}
-    </a>
-    <a share-target-href="mailto:?subject=Let's%20Annotate&amp;body={href}"
-      title="Share via email"
-      class="share-widget-target__icon">
-      {{ svg_icon('mail', 'share-widget-action') }}
-    </a>
-  </div>
   <div class="share-widget-link js-copy-button" type="text">
       <input class="share-widget-link__text js-select-onfocus js-share-widget-clipboard"
              data-ref="input"
