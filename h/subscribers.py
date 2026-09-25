@@ -3,7 +3,8 @@ from dataclasses import asdict
 
 from h_pyramid_sentry import report_exception
 from kombu.exceptions import OperationalError
-from pyramid.events import BeforeRender, subscriber
+from pyramid.events import BeforeRender, BeforeTraversal, subscriber
+from pyramid.httpexceptions import HTTPFound
 
 from h import __version__, emails
 from h.events import AnnotationEvent, ModeratedAnnotationEvent
@@ -16,6 +17,41 @@ from h.services.email import TaskData
 from h.tasks import annotations, email
 
 logger = logging.getLogger(__name__)
+
+#: Routes of the activity pages (and the redirects to them) that are only
+#: available to logged-in users.
+LOGIN_REQUIRED_ROUTES = frozenset(
+    {
+        "activity.search",
+        "activity.user_search",
+        "group_read",
+        "group_read_noslug",
+        "stream",
+        "stream.tag_query",
+        "stream.user_query",
+    }
+)
+
+
+@subscriber(BeforeTraversal)
+def require_login_for_activity_pages(event):
+    """
+    Redirect logged-out users on the activity pages to the login page.
+
+    This runs before traversal, i.e. before the route factories look up the
+    user or group in the URL. Otherwise logged-out users could tell from a 404
+    whether a username or group exists.
+    """
+    request = event.request
+    route = request.matched_route
+
+    if route is None or route.name not in LOGIN_REQUIRED_ROUTES:
+        return
+
+    if request.authenticated_userid is not None:
+        return
+
+    raise HTTPFound(location=request.route_url("login", _query={"next": request.url}))
 
 
 @subscriber(BeforeRender)

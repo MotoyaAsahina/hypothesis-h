@@ -3,6 +3,8 @@ from unittest.mock import call, create_autospec, sentinel
 
 import pytest
 from kombu.exceptions import OperationalError
+from pyramid.events import BeforeTraversal
+from pyramid.httpexceptions import HTTPFound
 from transaction import TransactionManager
 
 from h import __version__, subscribers
@@ -10,6 +12,54 @@ from h.events import AnnotationEvent, ModeratedAnnotationEvent
 from h.exceptions import RealtimeMessageQueueError
 from h.models.notification import NotificationType
 from h.tasks import email
+
+
+class TestRequireLoginForActivityPages:
+    @pytest.mark.parametrize("route_name", sorted(subscribers.LOGIN_REQUIRED_ROUTES))
+    def test_it_redirects_logged_out_users_to_the_login_page(
+        self, pyramid_request, route_name
+    ):
+        pyramid_request.matched_route = FakeRoute(route_name)
+        pyramid_request.url = "http://example.com/users/someone?q=tag:foo"
+
+        with pytest.raises(HTTPFound) as exc_info:
+            subscribers.require_login_for_activity_pages(
+                BeforeTraversal(pyramid_request)
+            )
+
+        assert exc_info.value.location == (
+            "http://example.com/login?next="
+            "http%3A%2F%2Fexample.com%2Fusers%2Fsomeone%3Fq%3Dtag%3Afoo"
+        )
+
+    @pytest.mark.parametrize("route_name", sorted(subscribers.LOGIN_REQUIRED_ROUTES))
+    def test_it_does_nothing_for_logged_in_users(
+        self, pyramid_config, pyramid_request, route_name
+    ):
+        pyramid_config.testing_securitypolicy("acct:someone@example.com")
+        pyramid_request.matched_route = FakeRoute(route_name)
+
+        subscribers.require_login_for_activity_pages(BeforeTraversal(pyramid_request))
+
+    @pytest.mark.parametrize("route_name", ["login", "annotation", "api.search"])
+    def test_it_does_nothing_for_other_routes(self, pyramid_request, route_name):
+        pyramid_request.matched_route = FakeRoute(route_name)
+
+        subscribers.require_login_for_activity_pages(BeforeTraversal(pyramid_request))
+
+    def test_it_does_nothing_if_no_route_matched(self, pyramid_request):
+        pyramid_request.matched_route = None
+
+        subscribers.require_login_for_activity_pages(BeforeTraversal(pyramid_request))
+
+    @pytest.fixture(autouse=True)
+    def routes(self, pyramid_config):
+        pyramid_config.add_route("login", "/login")
+
+
+class FakeRoute:
+    def __init__(self, name):
+        self.name = name
 
 
 @pytest.mark.usefixtures("routes")
