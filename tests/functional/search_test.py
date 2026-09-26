@@ -5,6 +5,7 @@ import pytest
 pytestmark = pytest.mark.usefixtures("init_elasticsearch")
 
 
+@pytest.mark.usefixtures("with_logged_in_user")
 def test_search_input_text_is_submitted_as_q_without_javascript(app):
     res = app.get("/search")
     form = res.forms["search-bar"]
