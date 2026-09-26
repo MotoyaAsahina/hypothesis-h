@@ -1,3 +1,5 @@
+from urllib.parse import urlencode
+
 import pytest
 
 from h.models import GroupMembership, GroupMembershipRoles
@@ -29,19 +31,30 @@ class TestGroupSearchController:
             "meta", attrs={"name": "referrer"}, content="origin"
         )
 
-    @pytest.mark.parametrize("should_login", (True, False))
+    @pytest.mark.usefixtures("with_logged_in_user")
     def test_join_page_is_shown_instead_of_search_without_read_permissions(
-        self, login_user, app, group, should_login
+        self, app, group
     ):
         # If you don't have read permissions
-        # But you do have join permissions / or you aren't logged in
+        # But you do have join permissions
         # Show the join page
-        if should_login:
-            login_user()
-
         response = app.get(f"/groups/{group.pubid}/{group.slug}")
 
         assert "join-group-form" in str(response.html)
+
+    @pytest.mark.parametrize("group_factory", ["Group", "OpenGroup"])
+    def test_unauthenticated_users_are_redirected_to_login(
+        self, app, db_session, factories, group_factory
+    ):
+        # Group pages require login, so unauthenticated users can't see the
+        # join page or the edit link. They are sent to the login page instead.
+        group = getattr(factories, group_factory)()
+        db_session.commit()
+        url = f"http://localhost/groups/{group.pubid}/{group.slug}"
+
+        response = app.get(url, status=302)
+
+        assert response.location == "http://localhost/login?" + urlencode({"next": url})
 
     @pytest.mark.usefixtures("with_logged_in_user")
     def test_404_is_raised_if_you_do_not_have_join_permission(
@@ -93,14 +106,6 @@ class TestGroupSearchController:
 
     @pytest.mark.usefixtures("with_logged_in_user")
     def test_non_members_cant_edit_groups(self, app, db_session, factories):
-        group = factories.OpenGroup()
-        db_session.commit()
-
-        response = app.get(f"/groups/{group.pubid}/{group.slug}")
-
-        assert f"http://localhost/groups/{group.pubid}/edit" not in str(response.html)
-
-    def test_unauthenticated_users_cant_edit_groups(self, app, db_session, factories):
         group = factories.OpenGroup()
         db_session.commit()
 
