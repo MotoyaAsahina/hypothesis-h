@@ -107,3 +107,12 @@ class TestGroupSearchController:
         response = app.get(f"/groups/{group.pubid}/{group.slug}")
 
         assert f"http://localhost/groups/{group.pubid}/edit" not in str(response.html)
+
+
+class TestNavbar:
+    @pytest.mark.usefixtures("with_logged_in_user")
+    def test_logo_links_to_the_home_page(self, app):
+        response = app.get("/search")
+
+        logo_link = response.html.find("a", class_="nav-bar__logo-container")
+        assert logo_link["href"] == "/"
