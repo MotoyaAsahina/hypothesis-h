@@ -76,6 +76,9 @@ celery.conf.update(
     task_time_limit=240,
     # Disable Celery task rate limits in local development.
     worker_disable_rate_limits=os.environ.get("DEV") == "true",
+    # The number of worker processes. When unset Celery starts one per CPU,
+    # which can use a lot of memory on a machine with many CPUs.
+    worker_concurrency=int(os.environ.get("CELERY_WORKER_CONCURRENCY") or 0) or None,
     imports=(
         "h.tasks.annotations",
         "h.tasks.cleanup",
